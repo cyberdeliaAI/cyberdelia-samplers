@@ -14,7 +14,10 @@
 #      Optional extra_args:
 #        cd_lcm_s_noise:    float  (default 1.0)   noise scale on re-noise
 #        cd_lcm_eps:        float  (default 1e-8)   sigma clamp
-#        cd_lcm_rk2_blend:  0..1   (default 0.5)    1 = full RK2, 0 = plain LCM
+#        cd_lcm_rk2_blend:  0..1   (default 0.0)    1 = full RK2, 0 = plain LCM
+#                                                    Raise only if you see
+#                                                    instability with non-DMD2
+#                                                    LoRAs or odd schedulers.
 
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ import torch
 from modules import sd_samplers, sd_samplers_common
 from modules.sd_samplers_kdiffusion import KDiffusionSampler
 
-__VER__ = "2.0"
+__VER__ = "2.1"
 _TAG = "[Cyberdelia Samplers]"
 print(f"{_TAG} v{__VER__} loaded:", __file__)
 
@@ -200,7 +203,8 @@ def sample_cyberdelia_lcm_ralston(
 
     s_noise = float(ea.get("cd_lcm_s_noise", 1.0))
     eps = float(ea.get("cd_lcm_eps", 1e-8))
-    rk2_blend = max(0.0, min(1.0, float(ea.get("cd_lcm_rk2_blend", 0.5))))
+    rk2_blend = max(0.0, min(1.0, float(ea.get("cd_lcm_rk2_blend", 0.0))))
+    use_rk2 = rk2_blend > 1e-6
 
     s_in = torch.ones((x.shape[0],), device=device, dtype=dtype)
     eps_t = torch.tensor(eps, device=device, dtype=dtype)
@@ -210,7 +214,7 @@ def sample_cyberdelia_lcm_ralston(
             return
         try:
             callback({"i": i, "sigma": s0, "sigma_hat": s_r, "sigma_next": s1, "x": x, "denoised": den})
-        except Exception:
+        except TypeError:
             pass
 
     for i in range(steps):
@@ -220,17 +224,22 @@ def sample_cyberdelia_lcm_ralston(
         # First denoise
         den0 = model(x, s0 * s_in, **ea_model)
 
-        # Ralston RK2 stabilization of the denoise prediction
-        sigma_r = torch.maximum(s0 + (2.0 / 3.0) * (s1 - s0), eps_t)
+        if use_rk2:
+            # Ralston RK2 stabilization of the denoise prediction
+            sigma_r = torch.maximum(s0 + (2.0 / 3.0) * (s1 - s0), eps_t)
 
-        d0 = _to_d(x, s0, den0, eps=eps)
-        x_r = x + (2.0 / 3.0) * (s1 - s0) * d0
+            d0 = _to_d(x, s0, den0, eps=eps)
+            x_r = x + (2.0 / 3.0) * (s1 - s0) * d0
 
-        den_r = model(x_r, sigma_r * s_in, **ea_model)
+            den_r = model(x_r, sigma_r * s_in, **ea_model)
 
-        # Ralston weights: 0.25/0.75 on denoise predictions, blended
-        den_hat_rk2 = 0.25 * den0 + 0.75 * den_r
-        den_hat = (1.0 - rk2_blend) * den0 + rk2_blend * den_hat_rk2
+            # Ralston weights: 0.25/0.75 on denoise predictions, blended
+            den_hat_rk2 = 0.25 * den0 + 0.75 * den_r
+            den_hat = (1.0 - rk2_blend) * den0 + rk2_blend * den_hat_rk2
+        else:
+            # Plain LCM path — skip the second model call entirely
+            sigma_r = s0
+            den_hat = den0
 
         # Final step: if sigma_next is 0, return denoised (no re-noise)
         if float(s1) == 0.0:
