@@ -1,6 +1,6 @@
 # Cyberdelia Samplers
 
-Custom sampling methods for [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge), based on the Ralston RK2 (Runge-Kutta 2nd order) method.
+Custom sampling methods for [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui) and [Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge), based on the Ralston RK2 (Runge-Kutta 2nd order) method, plus a Forge-compatible DPM++ 2M SDE Heun registration.
 
 ## Samplers
 
@@ -31,9 +31,21 @@ The denoise prediction is a blend between a single-eval LCM prediction and the f
 | `cd_lcm_eps` | `1e-8` | Sigma floor clamp |
 | `cd_lcm_rk2_blend` | `0.5` | 0 = plain LCM, 1 = full Ralston RK2 stabilization |
 
+### DPM++ 2M SDE Heun
+
+Registers Forge/A1111's built-in `sample_dpmpp_2m_sde` with `solver_type: "heun"` and the alias `dpmpp_2m_sde_heun_gpu`.
+
+For ComfyUI workflow conversion, use:
+
+```txt
+ComfyUI sampler: dpmpp_2m_sde_heun_gpu
+Forge sampler:   DPM++ 2M SDE Heun
+Scheduler:       SGM Uniform
+```
+
 ## Installation
 
-Copy the `cyberdelia_samplers` folder into your WebUI's `extensions/` directory and restart. Both samplers will appear in the sampler dropdown.
+Copy the `cyberdelia_samplers` folder into your WebUI's `extensions/` directory and restart. The samplers will appear in the sampler dropdown.
 
 Alternatively, clone directly:
 

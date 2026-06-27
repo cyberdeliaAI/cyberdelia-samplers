@@ -1,6 +1,6 @@
 # cyberdelia_samplers.py — Cyberdelia custom samplers for Forge / A1111
 #
-# Two Ralston RK2-based samplers in one extension:
+# Cyberdelia custom samplers plus compatibility registrations:
 #
 #   1. Cyberdelia Ralston (RK2)
 #      A crisp 2nd-order Runge-Kutta sampler using Ralston's method.
@@ -18,6 +18,11 @@
 #                                                    Raise only if you see
 #                                                    instability with non-DMD2
 #                                                    LoRAs or odd schedulers.
+#
+#   3. DPM++ 2M SDE Heun
+#      Forge/A1111 registration for the k-diffusion DPM++ 2M SDE sampler
+#      with solver_type="heun", matching ComfyUI's dpmpp_2m_sde_heun_gpu
+#      as closely as Forge's sampler API allows.
 
 from __future__ import annotations
 
@@ -25,7 +30,7 @@ import torch
 from modules import sd_samplers, sd_samplers_common
 from modules.sd_samplers_kdiffusion import KDiffusionSampler
 
-__VER__ = "2.1"
+__VER__ = "2.2"
 _TAG = "[Cyberdelia Samplers]"
 print(f"{_TAG} v{__VER__} loaded:", __file__)
 
@@ -281,5 +286,16 @@ _register_unique(
     options={
         "scheduler": "auto",
         "second_order": True,
+    },
+)
+
+_register_unique(
+    label="DPM++ 2M SDE Heun",
+    func="sample_dpmpp_2m_sde",
+    aliases=["k_dpmpp_2m_sde_heun", "dpmpp_2m_sde_heun_gpu"],
+    options={
+        "scheduler": "exponential",
+        "brownian_noise": True,
+        "solver_type": "heun",
     },
 )
